@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+
+    <node pkg="stage_ros" type="stageros" name="stageros" args="-d $(find tp_2_pmr)/worlds/rrt.world"/>
+
+    <arg name="map_file" default="$(find tp_2_pmr)/maps/rrt.yaml" />
+    <node pkg="map_server" type="map_server" name="map_server" args="$(arg map_file)" />
+
+    <node pkg="tf"
+        type="static_transform_publisher"
+        name="link1_broadcaster"
+        args="0 0 0 0 0 0 map odom 100" />
+
+    <!-- <node pkg="gmapping" type="slam_gmapping" name="GMAP" args="-d scan:=base_scan"/> -->
+
+    <node pkg="tp_2_pmr" type="rrt.py" name="RRT" output="screen"/>
+
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find tp_2_pmr)/rviz/rrt_config.rviz"/>
+    
+</launch>
+ 
