@@ -90,7 +90,7 @@ class Robot:
 
     def min_dist(self):
         """
-        Returns: A list of tuples with the laser data ordered from the shortest reading to the most farest one
+        Returns: A list of tuples with the laser data ordered from the shortest reading to the farest one
         with the angle regarding the measurement (in the laser frame)
 
         Output format: [(distance, angle), (distance, angle), ..., (distance, angle)]
@@ -233,9 +233,9 @@ def explore():
             prev_alfa = alfa[0]
 
             # Check one of the followings:
-            # 1 - If the distance between the closest laser reading and second close is grater than 0.10 m, if so,
+            # 1 - If the distance between the closest laser reading and second one is grater than 0.10 m, if so,
             # it is considered that these point are from different obstacles
-            # 2 - If the current reading of closest obstacle and the previous one are appart of 10 degrees or more
+            # 2 - If the current reading of the closest obstacle and the previous one are appart of 10 degrees or more
             if (robot.dist(robot.lidar_x[alfa[0]], robot.lidar_y[alfa[0]],\
                  robot.lidar_x[alfa[1]], robot.lidar_y[alfa[1]]) > 0.10 or abs(prev_alfa - alfa[0]) > 10):
                 stage = 2
