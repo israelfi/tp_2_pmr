@@ -32,6 +32,9 @@ class Robot:
         self.pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
 
     def callback_robot_odom(self,data):
+        """
+        Gets the robot odometry (position and orientation)
+        """
         self.robot_pos[0] = data.pose.pose.position.x
         self.robot_pos[1] = data.pose.pose.position.y
 
@@ -44,6 +47,9 @@ class Robot:
         self.robot_ori = euler[2]
 
     def sensor_callback(self, data):
+        """
+        Reads the sensor data and finds the coordinates of each reading in the world frame
+        """
         self.lidar_raw  = data.ranges
         self.l_max = data.range_max
         self.l_min = data.range_min
@@ -57,10 +63,55 @@ class Robot:
             alfa = alfa+1
 
     def dist_obst(self, px, py):
+        """
+        Returns: The distance between the robot and the point (px, py)
+        """
         d = sqrt((px-self.robot_pos[0])**2 + (py-self.robot_pos[1])**2)
         return d
 
+    def dist(self, px1, py1, px2, py2):
+        """
+        Returns: The distance between the point (px1, py1) and (px2, py2)
+        """
+        d = sqrt((px1-px2)**2 + (py1-py2)**2)
+        return d
+
+    def find_endpoints(self):
+        end_ids = []
+        cont = 0
+        for i in range(1, len(self.lidar_raw)-1):
+            if(self.l_min < self.lidar_raw[i] < self.l_max):
+                if(self.lidar_raw[i+1] >= self.l_max):
+                    end_ids.append(i)
+                elif(self.lidar_raw[i-1] >= self.l_max):
+                    end_ids.append(i)
+
+        return end_ids
+
     def min_dist(self):
+        """
+        Returns: A list of tuples with the laser data ordered from the shortest reading to the most farest one
+        with the angle regarding the measurement (in the laser frame)
+
+        Output format: [(distance, angle), (distance, angle), ..., (distance, angle)]
+        """
+        s = []
+        alfa = []
+        cont = 0
+        aux_list = []
+        for i in self.lidar_raw:
+            a = (i, cont)
+            aux_list.append(a)
+            cont += 1
+        aux_list.sort()
+
+        for j in aux_list[:3]:
+            s.append(j[0])
+            alfa.append(j[1])
+
+        return s, alfa
+
+    def nearest_obstacles(self):
         s = []
         alfa = []
         cont = 0
@@ -79,6 +130,9 @@ class Robot:
         return s, alfa
 
     def contourn_obst(self, s, alfa, obst_detec=1.0):
+        """
+        Contour a obstacle in a position of the laser (distance s and angle alfa) 
+        """
         K = 1.0
         Ux_ = (2.0/pi)*atan(K*(s- obst_detec))  # Normal 
         Uy_ = sqrt(1.0-Ux_**2) # Tangent
@@ -90,7 +144,10 @@ class Robot:
         self.pub_cmd_vel.publish(self.vel_msg)
 
     def equidistant_obs(self, s, alfa, obst_detec=1.0):
-        K = 1.0
+        """
+        Moves away form an obstacle
+        """
+        K = 0.25
         Ux_ = (2.0/pi)*atan(K*(s- obst_detec))  # Normal 
         Uy_ = 0.0
 
@@ -101,6 +158,9 @@ class Robot:
         self.pub_cmd_vel.publish(self.vel_msg)
     
     def follow_target(self, px, py):
+        """
+        Makes the robot go to the point (px, py)
+        """
         self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.control([px,py], self.robot_pos, self.robot_ori)
 
         self.pub_cmd_vel.publish(self.vel_msg)
@@ -158,17 +218,42 @@ def explore():
         if(stage == 0):
             if(robot.lidar_raw):
                 stage = 1
+                s, alfa = robot.min_dist()
+                prev_alfa = alfa[0]
 
         # Go to a equidistant point between obstacles
         if (stage == 1):
+            # Detect the nearest obstacles
             s, alfa = robot.min_dist()
-            robot.contourn_obst(s[0], alfa[0])
+            robot.equidistant_obs(s[0], alfa[0], 10) # Moves away from the nearest obstacle
+            print(robot.dist(robot.lidar_x[alfa[0]], robot.lidar_y[alfa[0]],\
+                 robot.lidar_x[alfa[1]], robot.lidar_y[alfa[1]]), alfa)
+            # robot.contourn_obst(s[0], alfa[0], 10)
+
+            prev_alfa = alfa[0]
+
+            # Check one of the followings:
+            # 1 - If the distance between the closest laser reading and second close is grater than 0.10 m, if so,
+            # it is considered that these point are from different obstacles
+            # 2 - If the current reading of closest obstacle and the previous one are appart of 10 degrees or more
+            if (robot.dist(robot.lidar_x[alfa[0]], robot.lidar_y[alfa[0]],\
+                 robot.lidar_x[alfa[1]], robot.lidar_y[alfa[1]]) > 0.10 or abs(prev_alfa - alfa[0]) > 10):
+                stage = 2
+                prev_alfa = alfa[0]
+            prev_alfa = alfa[0]
         
         # Meetpoint
         if (stage == 2):
-            pass
-        # s, alfa = robot.min_dist()
-        # print "Leitura mais prox:", s, "(m)\t", alfa, "(graus)"
+            s, alfa = robot.min_dist()
+            robot.vel_msg.linear.x, robot.vel_msg.angular.z = 0.0, 0.0
+            robot.pub_cmd_vel.publish(robot.vel_msg)
+
+            print(robot.dist(robot.lidar_x[alfa[0]], robot.lidar_y[alfa[0]],\
+                 robot.lidar_x[alfa[1]], robot.lidar_y[alfa[1]]), alfa)
+
+            if (robot.dist(robot.lidar_x[alfa[0]], robot.lidar_y[alfa[0]], \
+                robot.lidar_x[alfa[1]], robot.lidar_y[alfa[1]]) < 0.10):
+                stage = 1
 
         rate.sleep()
 
