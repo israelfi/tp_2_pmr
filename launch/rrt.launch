@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
+    <param name="use_sim_time" value="true"/>
 
     <node pkg="stage_ros" type="stageros" name="stageros" args="-d $(find tp_2_pmr)/worlds/rrt.world"/>
 
@@ -9,9 +10,15 @@
     <node pkg="tf"
         type="static_transform_publisher"
         name="link1_broadcaster"
-        args="0 0 0 0 0 0 map odom 100" />
+        args="1 0 0 0 0 0 map odom 100" />
 
-    <!-- <node pkg="gmapping" type="slam_gmapping" name="GMAP" args="-d scan:=base_scan"/> -->
+
+<!--     <node pkg="gmapping" type="slam_gmapping" name="GMAP" args="-d scan:=base_scan"/>
+    <param name="xmin" value="-20.0"/>
+    <param name="ymin" value="-25.0"/>
+    <param name="xmax" value="20.0"/>
+    <param name="ymax" value="20.0"/>
+    <param name="delta" value="0.1" /> -->
 
     <node pkg="tp_2_pmr" type="rrt.py" name="RRT" output="screen"/>
 

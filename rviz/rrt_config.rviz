@@ -6,7 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
-        - /Odometry1/Status1
+        - /Odometry1/Shape1
       Splitter Ratio: 0.5
     Tree Height: 775
   - Class: rviz/Selection
@@ -48,7 +48,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
+      Plane Cell Count: 100
       Reference Frame: <Fixed Frame>
       Value: true
     - Alpha: 0.699999988
@@ -84,8 +84,8 @@ Visualization Manager:
       Position Tolerance: 0.100000001
       Shape:
         Alpha: 1
-        Axes Length: 1
-        Axes Radius: 0.100000001
+        Axes Length: 2
+        Axes Radius: 0.300000012
         Color: 255; 25; 0
         Head Length: 0.300000012
         Head Radius: 0.100000001
@@ -93,6 +93,52 @@ Visualization Manager:
         Shaft Radius: 0.0500000007
         Value: Axes
       Topic: /odom
+      Unreliable: false
+      Value: true
+    - Alpha: 0.100000001
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 0; 255
+      Enabled: true
+      Head Diameter: 0.300000012
+      Head Length: 0.200000003
+      Length: 0.300000012
+      Line Style: Billboards
+      Line Width: 0.150000006
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.0299999993
+      Shaft Diameter: 0.100000001
+      Shaft Length: 0.100000001
+      Topic: /final_path
+      Unreliable: false
+      Value: true
+    - Alpha: 0.100000001
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 25; 255; 0
+      Enabled: true
+      Head Diameter: 0.300000012
+      Head Length: 0.200000003
+      Length: 0.300000012
+      Line Style: Billboards
+      Line Width: 0.150000006
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.0299999993
+      Shaft Diameter: 0.100000001
+      Shaft Length: 0.100000001
+      Topic: /rrt_path
       Unreliable: false
       Value: true
   Enabled: true
@@ -119,7 +165,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 0.0399969853
+      Angle: 0.010000499
       Class: rviz/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
@@ -129,11 +175,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Scale: 13.4146643
+      Scale: 9.6447134
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 1.0445205
-      Y: -2.27686858
+      X: 3.11870742
+      Y: -0.538269162
     Saved: ~
 Window Geometry:
   Displays:
