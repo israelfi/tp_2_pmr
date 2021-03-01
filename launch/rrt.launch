@@ -4,7 +4,7 @@
 
     <node pkg="stage_ros" type="stageros" name="stageros" args="-d $(find tp_2_pmr)/worlds/rrt.world"/>
 
-    <arg name="map_file" default="$(find tp_2_pmr)/maps/rrt.yaml" />
+    <arg name="map_file" default="$(find tp_2_pmr)/maps/rrt_3.yaml" />
     <node pkg="map_server" type="map_server" name="map_server" args="$(arg map_file)" />
 
     <node pkg="tf"
@@ -13,8 +13,8 @@
         args="1 0 0 0 0 0 map odom 100" />
 
 
-<!--     <node pkg="gmapping" type="slam_gmapping" name="GMAP" args="-d scan:=base_scan"/>
-    <param name="xmin" value="-20.0"/>
+    <!-- <node pkg="gmapping" type="slam_gmapping" name="GMAP" args="-d scan:=base_scan"/> -->
+<!--     <param name="xmin" value="-20.0"/>
     <param name="ymin" value="-25.0"/>
     <param name="xmax" value="20.0"/>
     <param name="ymax" value="20.0"/>

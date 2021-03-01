@@ -303,7 +303,7 @@ def new_path(traj, pub):
 ########################################
 def map(map_name, fact, resol):
     rospack = rospkg.RosPack()
-    path = rospack.get_path('tp_1')
+    path = rospack.get_path('tp_2_pmr')
     image_path = path + '/worlds/' + map_name
     image = img.imread(image_path)
     image.setflags(write=1)
@@ -355,7 +355,7 @@ def run():
 
     ####### Get Map
     mapa = []
-    M, obstacle_list = map('map_obstacle2.bmp', 50, 1.0)
+    M, obstacle_list = map('map_obstacle3.bmp', 50, 1.0)
 
     ####### RRT - class
     # Start point

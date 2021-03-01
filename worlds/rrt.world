@@ -22,7 +22,7 @@ window (
 
 model (
     name "world"
-    bitmap "map_obstacle2.bmp"
+    bitmap "map_obstacle3.bmp"
     size [100.000 100.000 0.700]
     pose [0.000 0.000 0.000 0.000 ]
 
