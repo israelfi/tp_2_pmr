@@ -4,9 +4,9 @@ resolution 0.01
 
 window (
     center [0.000 0.000]
-    size [600 600]
+    size [900 900]
     rotate [0.000 -360.000]
-    scale 10
+    scale 20
 
     # GUI options
     show_data 1
@@ -28,7 +28,7 @@ window (
 
 model (
     name "world"
-    bitmap "map_2.png"
+    bitmap "map_3.png"
     size [50.000 50.000 0.700]
     pose [0.000 0.000 0.000 0.000 ]
 

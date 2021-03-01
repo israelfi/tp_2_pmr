@@ -8,6 +8,8 @@ from sensor_msgs.msg import PointCloud2, LaserScan
 import laser_geometry.laser_geometry as lg
 import sensor_msgs.point_cloud2 as pc2
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 
 class Robot:
@@ -61,6 +63,16 @@ class Robot:
             self.lidar_x[alfa]= sx
             self.lidar_y[alfa] = sy
             alfa = alfa+1
+
+    def get_local_min(self):
+        local_min = []
+        lidar_raw = self.lidar_raw
+        for i in range(1, len(lidar_raw)-1):
+            if(self.l_min < lidar_raw[i] < self.l_max):
+                if(lidar_raw[i-1] > lidar_raw[i] and lidar_raw[i+1] > lidar_raw[i]):
+                    local_min.append((lidar_raw[i], i))
+        return local_min
+
 
     def dist_obst(self, px, py):
         """
@@ -149,7 +161,7 @@ class Robot:
         Contour a obstacle in a position of the laser (distance s and angle alfa) 
         """
         K = 1.0
-        Ux_ = (2.0/pi)*atan(K*(s- obst_detec))  # Normal 
+        Ux_ = (2.0/pi)*atan(K*(s - obst_detec))  # Normal 
         Uy_ = sqrt(1.0-Ux_**2) # Tangent
 
         Ux = Ux_*cos(np.deg2rad(alfa-180)+self.robot_ori) - Uy_*sin(np.deg2rad(alfa-180)+self.robot_ori)
@@ -190,6 +202,56 @@ class Robot:
         """
         self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.control([px,py], self.robot_pos, self.robot_ori)
 
+        self.pub_cmd_vel.publish(self.vel_msg)
+
+    def pot_rep(self, alfa1, alfa2=0):
+        K = 2.0
+        D_safe = 10.0
+        pos = []
+        maior = max(alfa1, alfa2)
+        menor = min(alfa1, alfa2)
+        alfa1 = maior
+        alfa2 = menor
+        pos.append(self.lidar_x[alfa1])
+        pos.append(self.lidar_y[alfa1])
+
+        pos.append(self.lidar_x[alfa2])
+        pos.append(self.lidar_y[alfa2])
+
+        alfa_rad = abs(atan2((pos[3] - pos[1]), (pos[2] - pos[0]))) #+ pi/2
+    
+        alfa = alfa1 + alfa2 #+ 90
+
+        if alfa > 180:
+            alfa -= 180
+
+        grad_x = - cos(alfa*pi/180 + self.robot_ori)
+        grad_y = - sin(alfa*pi/180 + self.robot_ori)
+
+        Ux = K * grad_x
+        Uy = K * grad_y
+
+        self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.feedback_linearization(Ux,Uy,self.robot_ori)
+        self.pub_cmd_vel.publish(self.vel_msg)
+
+    def pot_rep_obs(self, alfa1):
+        K = 2.0
+        D_safe = 10.0
+        pos = []
+
+        pos.append(self.lidar_x[alfa1])
+        pos.append(self.lidar_y[alfa1])
+
+        alfa = alfa1
+
+        grad_x = cos(alfa*pi/180 + self.robot_ori)
+        grad_y = sin(alfa*pi/180 + self.robot_ori)
+
+        Ux = K * grad_x
+        Uy = K * grad_y
+       
+
+        self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.feedback_linearization(Ux,Uy,self.robot_ori)
         self.pub_cmd_vel.publish(self.vel_msg)
 
 
@@ -252,44 +314,41 @@ def explore():
         if (stage == 1):
             # Detect the nearest obstacles
             s, alfa = robot.min_dist()
-            robot.equidistant_obs(s[0], alfa[0], 10) # Moves away from the nearest obstacle
-            # print(alfa, "- 1")
+            # robot.equidistant_obs(s[0], alfa[0], 10) # Moves away from the nearest obstacle
+            robot.pot_rep_obs(alfa[0])
 
-            """
-            # Check one of the followings:
-            # 1 - If the distance between the closest laser reading and second one is grater than 0.10 m, if so,
-            # it is considered that these point are from different obstacles
-            # 2 - If the current reading of the closest obstacle and the previous one are appart of 10 degrees or more
-            # if (robot.dist(robot.lidar_x[alfa[0]], robot.lidar_y[alfa[0]],\
-                #  robot.lidar_x[alfa[4]], robot.lidar_y[alfa[4]]) > 0.50):# or abs(prev_alfa - alfa[0]) > 10):
-                # stage = 2
-                # prev_alfa = alfa[0]
-            """
+            # print(len(robot.get_local_min()), robot.get_local_min())
 
-            # If the angle between 40 closest laser readings is greater than 40, it is considered that the
-            # laser is close to more than one obstacle
-            if (max(robot.dist_vec(alfa)) > 40):
-                stage = 2
+            local_min = robot.get_local_min()
+            local_min.sort()
+            print(local_min, "- 1")
 
-            # print(robot.dist_vec(alfa))
-            # prev_alfa = alfa[0]
+            if (len(local_min) > 1):
+                if (abs(local_min[0][0] - local_min[1][0]) < 0.20):
+                    stage = 2
         
         # Equidistant to two obstacles
         if (stage == 2):
             s, alfa = robot.min_dist()
-            robot.rotate(s[0], alfa[0], s[0])       
+            robot.rotate(s[0], alfa[0], s[0])
+            # robot.contourn_obst(s[0], alfa[0], s[0])
 
-            # print(alfa, "- 2")
-            # print(robot.dist_vec(alfa[:30]))
+            local_min = robot.get_local_min()
+            local_min.sort()
+            print(local_min, "- 2")
 
             # Check if the nearest laser reading are from the same obstacle, if so, the robot needs to get
             # away from it
-            if (max(robot.dist_vec(alfa[:30])) < 30):
-                stage = 1
+            if (len(local_min) > 1):
+                robot.pot_rep(local_min[0][1], local_min[1][1])
+                if (abs(local_min[0][0] - local_min[1][0]) > 0.20):
+                    stage = 1
+            else:
+                robot.pot_rep(local_min[0][1])
 
-            prev_alfa = alfa[0]
 
-        # Meetpoint (equidistant to three obstacles)
+
+        # Meetpoint (equidistant to three obstacles) - como identificar?
         if (stage == 3):
             pass
 
