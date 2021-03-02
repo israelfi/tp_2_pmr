@@ -9,6 +9,7 @@ import laser_geometry.laser_geometry as lg
 import sensor_msgs.point_cloud2 as pc2
 import numpy as np
 import matplotlib.pyplot as plt
+import copy
 
 
 
@@ -65,13 +66,31 @@ class Robot:
             alfa = alfa+1
 
     def get_local_min(self):
-        local_min = []
+        min_readings = []
         lidar_raw = self.lidar_raw
         for i in range(1, len(lidar_raw)-1):
             if(self.l_min < lidar_raw[i] < self.l_max):
                 if(lidar_raw[i-1] > lidar_raw[i] and lidar_raw[i+1] > lidar_raw[i]):
-                    local_min.append((lidar_raw[i], i))
-        return local_min
+                    min_readings.append((lidar_raw[i], i))
+
+        # Filtering the results. Sometimes, the laser does not returns the local min correctly
+        aux_list = copy.deepcopy(min_readings)
+        for i in min_readings:
+            remove_item = False
+            for j in min_readings:    
+                if ((abs(i[1] - j[1]) <= 25) and i != j):
+                    if(i[0] < j[0]):
+                        remove_item = False
+                    else:
+                        remove_item = True
+
+            if remove_item:
+                aux_list.remove(i)
+
+        aux_list.sort()
+        min_readings.sort()
+        # print(aux_list, "|", min_readings)
+        return aux_list
 
 
     def dist_obst(self, px, py):
@@ -87,18 +106,6 @@ class Robot:
         """
         d = sqrt((px1-px2)**2 + (py1-py2)**2)
         return d
-
-    def find_endpoints(self):
-        end_ids = []
-        cont = 0
-        for i in range(1, len(self.lidar_raw)-1):
-            if(self.l_min < self.lidar_raw[i] < self.l_max):
-                if(self.lidar_raw[i+1] >= self.l_max):
-                    end_ids.append(i)
-                elif(self.lidar_raw[i-1] >= self.l_max):
-                    end_ids.append(i)
-
-        return end_ids
 
     def min_dist(self):
         """
@@ -121,24 +128,6 @@ class Robot:
             s.append(j[0])
             alfa.append(j[1])
 
-        return s, alfa
-
-    def nearest_obstacles(self):
-        s = []
-        alfa = []
-        cont = 0
-        aux_list = []
-        for i in self.lidar_raw:
-            a = (i, cont)
-            aux_list.append(a)
-            cont += 1
-        aux_list.sort()
-
-        for j in aux_list[:10]:
-            s.append(j[0])
-            alfa.append(j[1])
-
-        print(s)
         return s, alfa
 
     def rotate(self, s, alfa, obst_detec=1.0):
@@ -196,45 +185,55 @@ class Robot:
 
         return d
     
-    def follow_target(self, px, py):
+    def pot_rep(self, alfa1, alfa2=0, reverse=False):
         """
-        Makes the robot go to the point (px, py)
+        Function that navigates the robot through the GVD
         """
-        self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.control([px,py], self.robot_pos, self.robot_ori)
-
-        self.pub_cmd_vel.publish(self.vel_msg)
-
-    def pot_rep(self, alfa1, alfa2=0):
         K = 2.0
-        D_safe = 10.0
         pos = []
         maior = max(alfa1, alfa2)
         menor = min(alfa1, alfa2)
+
+        # alfa1 and alfa2 can changes values between themselfs, what makes the value of the gradient
+        # oscillates between positive and negative. So alfa1 is considered as the greatest angle
         alfa1 = maior
         alfa2 = menor
+        
         pos.append(self.lidar_x[alfa1])
         pos.append(self.lidar_y[alfa1])
 
         pos.append(self.lidar_x[alfa2])
         pos.append(self.lidar_y[alfa2])
 
-        alfa_rad = abs(atan2((pos[3] - pos[1]), (pos[2] - pos[0]))) #+ pi/2
-    
-        alfa = alfa1 + alfa2 #+ 90
+        grad_x1 = cos(alfa1*pi/180 + self.robot_ori)
+        grad_y1 = sin(alfa1*pi/180 + self.robot_ori)
 
-        if alfa > 180:
-            alfa -= 180
+        grad_x2 = cos(alfa2*pi/180 + self.robot_ori)
+        grad_y2 = sin(alfa2*pi/180 + self.robot_ori)
 
-        grad_x = - cos(alfa*pi/180 + self.robot_ori)
-        grad_y = - sin(alfa*pi/180 + self.robot_ori)
+        # print(grad_x1, grad_y1, "|", grad_x2, grad_y2)
+
+        grad_x = grad_x1 - grad_x2
+        grad_y = grad_y1 - grad_y2
+
+        # Getting the line orthogonal to grad1 - grad2
+        aux = grad_x
+        grad_x = - grad_y
+        grad_y = aux
 
         Ux = K * grad_x
         Uy = K * grad_y
 
         self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.feedback_linearization(Ux,Uy,self.robot_ori)
+        self.vel_msg.linear.x = self.vel_msg.linear.x/1.5
+        if reverse:
+            self.vel_msg.linear.x = -self.vel_msg.linear.x
         self.pub_cmd_vel.publish(self.vel_msg)
 
     def pot_rep_obs(self, alfa1):
+        """
+        Makes the robot to get away from the obstacle
+        """
         K = 2.0
         D_safe = 10.0
         pos = []
@@ -300,6 +299,8 @@ def explore():
     rate = rospy.Rate(20)
     t_init = rospy.get_time()
     stage = 0
+    reverse = False
+    away_wall = True
 
     while not rospy.is_shutdown():
 
@@ -312,12 +313,11 @@ def explore():
 
         # Go to a equidistant point between obstacles
         if (stage == 1):
+
             # Detect the nearest obstacles
             s, alfa = robot.min_dist()
-            # robot.equidistant_obs(s[0], alfa[0], 10) # Moves away from the nearest obstacle
-            robot.pot_rep_obs(alfa[0])
 
-            # print(len(robot.get_local_min()), robot.get_local_min())
+            robot.pot_rep_obs(alfa[0]) # Moves away from the nearest obstacle
 
             local_min = robot.get_local_min()
             local_min.sort()
@@ -330,27 +330,55 @@ def explore():
         # Equidistant to two obstacles
         if (stage == 2):
             s, alfa = robot.min_dist()
-            robot.rotate(s[0], alfa[0], s[0])
-            # robot.contourn_obst(s[0], alfa[0], s[0])
 
             local_min = robot.get_local_min()
             local_min.sort()
             print(local_min, "- 2")
-
-            # Check if the nearest laser reading are from the same obstacle, if so, the robot needs to get
-            # away from it
+            
             if (len(local_min) > 1):
-                robot.pot_rep(local_min[0][1], local_min[1][1])
-                if (abs(local_min[0][0] - local_min[1][0]) > 0.20):
+                
+                if (len(local_min) > 2):
+                    if(local_min[0][0] < 0.75 and local_min[1][0] < 0.75 and away_wall):
+                        reverse = True
+                        away_wall = False
+                    
+                    if(local_min[0][0] > 0.75 and local_min[1][0] > 0.75):
+                        away_wall = True
+                        # reverse = False
+
+                    # Check if the robot is at meetpoint
+                    if (abs(local_min[0][0] - local_min[2][0]) < 0.20):
+                        if away_wall:
+                            reverse = False
+                            
+                        # aux = copy.deepcopy(local_min)
+                        # aux = sorted(aux, key = lambda kv:(kv[1], kv[0])) # sorts the list based on the smallest angles
+                        # robot.pot_rep(aux[0][1], aux[1][1]) # moves the robot to the smallest angle obstacles
+                        stage = 3
+                        # print("3")
+                
+                robot.pot_rep(local_min[0][1], local_min[1][1], reverse)
+                # Check if the robot is equidistant to the obstacles
+                if (abs(local_min[0][0] - local_min[1][0]) > 0.30):
                     stage = 1
             else:
-                robot.pot_rep(local_min[0][1])
+                robot.pot_rep(local_min[0][1], reverse)
 
 
 
-        # Meetpoint (equidistant to three obstacles) - como identificar?
+        # Meetpoint (equidistant to three obstacles)
         if (stage == 3):
-            pass
+            aux = copy.deepcopy(local_min)
+            aux = sorted(aux, key = lambda kv:(kv[1], kv[0])) # sorts the list based on the smallest angles
+            robot.pot_rep(aux[0][1], aux[1][1], reverse) # moves the robot to the smallest angle obstacles
+            stage = 2
+
+            print(local_min, "- 3")
+
+
+            # robot.vel_msg.linear.x, robot.vel_msg.angular.z = 0.0, 0.0
+            # robot.pub_cmd_vel.publish(robot.vel_msg)
+            
 
         rate.sleep()
 
