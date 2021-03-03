@@ -360,7 +360,7 @@ def explore():
                 robot.pot_rep(local_min[0][1], local_min[1][1], reverse)
                 # Check if the robot is equidistant to the obstacles
                 if (abs(local_min[0][0] - local_min[1][0]) > 0.30):
-                    stage = 1
+                    stage = 2
             else:
                 robot.pot_rep(local_min[0][1], reverse)
 

@@ -134,7 +134,7 @@ class RRT:
             dy_list = [cy - y for y in q.path_y]
             d_list = [dx * dx + dy * dy for (dx, dy) in zip(dx_list, dy_list)]
 
-            if min(d_list) <= size**2:
+            if min(d_list) <= 3*size**2:
                 return False  # collision
 
         return True  # safe
@@ -364,7 +364,6 @@ def run():
     max_samples = 5000
 
     flag_start = True
-
     
     while not rospy.is_shutdown():
 
@@ -394,6 +393,8 @@ def run():
                 # rrt_path.draw_graph()
                 plt.plot([x for (x, y) in path], [y for (x, y) in path], '-r')
                 plt.grid(True)
+                plt.xlabel('X (m)')
+                plt.ylabel('Y (m)')
                 plt.show()
 
                 new_path(new_traj,pub_path)
