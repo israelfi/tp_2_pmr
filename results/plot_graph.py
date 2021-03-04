@@ -2,11 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 from matplotlib.animation import FuncAnimation
+from matplotlib.patches import Rectangle
 
-plt.style.use('fivethirtyeight')
+# plt.style.use('fivethirtyeight')
 
 def read_file(arg1):
-    with open('voronoi.txt', 'r') as arquivo:
+    with open('/home/israel/catkin_ws/src/tp_2_pmr/results/voronoi_1.txt', 'r') as arquivo:
         linhas = arquivo.readlines()
         eixo_x = []
         eixo_y = []
@@ -18,12 +19,27 @@ def read_file(arg1):
                 pass
 
     plt.cla()
+
+    # rectangle = plt.Rectangle((-25,-25), 49, 50, fc='white',ec="black")
+    # plt.gca().add_patch(rectangle)
     plt.plot(eixo_x, eixo_y, color='green')
+    plt.axis('equal')
+
+    # plt.grid()
+    # Show the major grid lines with dark grey lines
+    # plt.grid(b=True, which='major', color='#88888888', linestyle='-')
+    # Show the minor grid lines with very faint and almost transparent grey lines
+    plt.minorticks_on()
+    # plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+
+    plt.xlim([-30, 30])
+    plt.ylim([-25, 25])
     plt.tight_layout()
 
 
 if __name__ == '__main__':    
 
-    ani = FuncAnimation(plt.gcf(), read_file, interval=10)
+    # ani = FuncAnimation(plt.gcf(), read_file, interval=10)
+    read_file(1)
 
     plt.show()

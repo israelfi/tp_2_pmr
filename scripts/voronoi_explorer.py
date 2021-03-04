@@ -253,6 +253,41 @@ class Robot:
         self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.feedback_linearization(Ux,Uy,self.robot_ori)
         self.pub_cmd_vel.publish(self.vel_msg)
 
+    def pot_rep_meetpoint(self, alfa1, alfa2=0, reverse=False):
+        """
+        Function that navigates the robot through the GVD
+        """
+        K = 2.0
+        pos = []
+        
+        pos.append(self.lidar_x[alfa1])
+        pos.append(self.lidar_y[alfa1])
+
+        pos.append(self.lidar_x[alfa2])
+        pos.append(self.lidar_y[alfa2])
+
+        grad_x1 = cos(alfa1*pi/180 + self.robot_ori)
+        grad_y1 = sin(alfa1*pi/180 + self.robot_ori)
+
+        grad_x2 = cos(alfa2*pi/180 + self.robot_ori)
+        grad_y2 = sin(alfa2*pi/180 + self.robot_ori)
+
+        grad_x = grad_x1 - grad_x2
+        grad_y = grad_y1 - grad_y2
+
+        # Getting the line orthogonal to grad1 - grad2
+        aux = grad_x
+        grad_x = - grad_y
+        grad_y = aux
+
+        Ux = K * grad_x
+        Uy = K * grad_y
+
+        self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.feedback_linearization(Ux,Uy,self.robot_ori)
+        self.vel_msg.linear.x = self.vel_msg.linear.x/1.5
+        if reverse:
+            self.vel_msg.linear.x = -self.vel_msg.linear.x
+        self.pub_cmd_vel.publish(self.vel_msg)
 
 class Control:
 
@@ -301,6 +336,7 @@ def explore():
     stage = 0
     reverse = False
     away_wall = True
+    meetpoints = []
 
     while not rospy.is_shutdown():
 
@@ -324,7 +360,7 @@ def explore():
             print(local_min, "- 1")
 
             if (len(local_min) > 1):
-                if (abs(local_min[0][0] - local_min[1][0]) < 0.20):
+                if (abs(local_min[0][0] - local_min[1][0]) < 0.50):
                     stage = 2
         
         # Equidistant to two obstacles
@@ -333,7 +369,7 @@ def explore():
 
             local_min = robot.get_local_min()
             local_min.sort()
-            print(local_min, "- 2")
+            # print(local_min, "- 2")
             
             if (len(local_min) > 1):
                 
@@ -344,41 +380,78 @@ def explore():
                     
                     if(local_min[0][0] > 0.75 and local_min[1][0] > 0.75):
                         away_wall = True
-                        # reverse = False
 
                     # Check if the robot is at meetpoint
-                    if (abs(local_min[0][0] - local_min[2][0]) < 0.20):
-                        if away_wall:
+                    if (abs(local_min[0][0] - local_min[2][0]) < 0.35 ):
+                        if away_wall and reverse == True:
                             reverse = False
-                            
-                        # aux = copy.deepcopy(local_min)
-                        # aux = sorted(aux, key = lambda kv:(kv[1], kv[0])) # sorts the list based on the smallest angles
-                        # robot.pot_rep(aux[0][1], aux[1][1]) # moves the robot to the smallest angle obstacles
+                            angle = robot.robot_ori
+                            if angle > 0:
+                                angle -= pi
+                            else:
+                                angle += pi
+                            print(round(robot.robot_ori, 2), round(angle, 2))
+                            while not (round(angle, 2) - 0.10 <= round(robot.robot_ori, 2) <= round(angle, 2) + 0.10):
+                                print(round(robot.robot_ori, 2), round(angle, 2))
+                                robot.vel_msg.linear.x = 0.0
+                                robot.vel_msg.angular.z = 0.5
+                                robot.pub_cmd_vel.publish(robot.vel_msg)
+
+                        visited_point = False
+                        if meetpoints != []:
+                            for i in range(len(meetpoints)):
+                                d = robot.dist(meetpoints[i][0], meetpoints[i][1],robot.robot_pos[0], robot.robot_pos[1])
+                                if d < 2.0:
+                                    meetpoints[i][2] += 1
+                                    visited_point = True
+                                
+                            if not visited_point:
+                                meetpoints.append([robot.robot_pos[0], robot.robot_pos[1], 0])
+                                visited_point = False
+                        else:
+                            meetpoints.append([robot.robot_pos[0], robot.robot_pos[1], 0])
+
+                        aux = copy.deepcopy(local_min)
+                        aux = sorted(aux, key = lambda kv:(kv[1], kv[0])) # sorts the list based on the smallest angles
                         stage = 3
-                        # print("3")
                 
                 robot.pot_rep(local_min[0][1], local_min[1][1], reverse)
                 # Check if the robot is equidistant to the obstacles
-                if (abs(local_min[0][0] - local_min[1][0]) > 0.30):
-                    stage = 2
+                if (abs(local_min[0][0] - local_min[1][0]) > 0.50):
+                    stage = 1
             else:
                 robot.pot_rep(local_min[0][1], reverse)
 
-
-
         # Meetpoint (equidistant to three obstacles)
         if (stage == 3):
-            aux = copy.deepcopy(local_min)
-            aux = sorted(aux, key = lambda kv:(kv[1], kv[0])) # sorts the list based on the smallest angles
-            robot.pot_rep(aux[0][1], aux[1][1], reverse) # moves the robot to the smallest angle obstacles
+            # s, alfa = robot.min_dist()
+            # local_min = robot.get_local_min()
+            # local_min.sort()
+            # print(meetpoints)
+
+            for i in range(len(meetpoints)):
+                d = robot.dist(meetpoints[i][0], meetpoints[i][1], robot.robot_pos[0], robot.robot_pos[1])
+                if d < 2.0:
+                    visited = meetpoints[i][2]
+
+            # aux = copy.deepcopy(local_min)
+            # aux = sorted(aux, key = lambda kv:(kv[1], kv[0])) # sorts the list based on the smallest angles
+            # robot.pot_rep(local_min[0][1], local_min[1][1], reverse) # moves the robot to the smallest angle obstacles
+            
+
+
+            if (visited % 2 == 0):
+                robot.pot_rep(aux[0][1], aux[1][1], reverse) # moves the robot to the biggest angle obstacles
+            else:
+                robot.pot_rep(aux[1][1], aux[2][1], reverse) # moves the robot to the smallest angle obstacles
             stage = 2
+
+            # if(len(local_min) > 2):
+            #     if (abs(local_min[0][0] - local_min[2][0]) > 0.70):
+            #         stage = 2
 
             print(local_min, "- 3")
 
-
-            # robot.vel_msg.linear.x, robot.vel_msg.angular.z = 0.0, 0.0
-            # robot.pub_cmd_vel.publish(robot.vel_msg)
-            
 
         rate.sleep()
 
