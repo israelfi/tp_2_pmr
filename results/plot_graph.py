@@ -7,7 +7,7 @@ from matplotlib.patches import Rectangle
 # plt.style.use('fivethirtyeight')
 
 def read_file(arg1):
-    with open('/home/israel/catkin_ws/src/tp_2_pmr/results/voronoi.txt', 'r') as arquivo:
+    with open('./voronoi.txt', 'r') as arquivo:
         linhas = arquivo.readlines()
         eixo_x = []
         eixo_y = []
