@@ -3,7 +3,6 @@ import rospy
 import rospkg
 from tf.transformations import euler_from_quaternion
 
-
 # ros-msgs
 from nav_msgs.msg import Odometry, OccupancyGrid, Path
 from geometry_msgs.msg import Twist, PointStamped, PoseStamped
@@ -13,7 +12,7 @@ import matplotlib.image as img
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-from math import atan2, cos, sin, sqrt, hypot, floor, ceil
+from math import pi, atan2, tan, cos, sin, sqrt, hypot, floor, ceil
 
 
  
@@ -25,23 +24,28 @@ class RRT:
         """
         Class Node
         """
-        def __init__(self, x, y):
+        def __init__(self, x, y, theta):
             self.x = x
             self.y = y
+            self.theta = theta
             self.path_x = []
             self.path_y = []
             self.parent = None
 
-    def __init__(self, start, goal, obstacle_list, map_size, step_size=2.0, path_frac=0.1, max_iter=500):
-        self.start = self.Node(start[0], start[1])
-        self.end_point = self.Node(goal[0], goal[1])
+    def __init__(self, start, goal, obstacle_list, map_size, step_size=2.0, dt=0.1, max_iter=500):
+        self.start = self.Node(start[0], start[1], start[2])
+        self.end_point = self.Node(goal[0], goal[1], 0.0)
         self.min_rand = map_size[0]
         self.max_rand = map_size[1]
         self.step_size = step_size
-        self.path_frac = path_frac
+        self.dt = dt
         self.max_iter = max_iter
         self.obstacle_list = obstacle_list
         self.node_list = []
+
+        # robot velocity for nonholonomic paths
+        self.uV = 1.0
+        self.uW = [pi/-6.0, pi/-12.0, 0.0, pi/6.0, pi/12.0]
 
     def planning(self):
 
@@ -50,10 +54,11 @@ class RRT:
             q_rnd = self.get_random()
             q_new = self.extend_rrt(q_rnd)
 
-            if dist([self.node_list[-1].x, self.node_list[-1].y],[self.end_point.x,self.end_point.y]) <= self.step_size:
+            if dist([self.node_list[-1].x, self.node_list[-1].y],[self.end_point.x,self.end_point.y]) <= self.step_size/1.0:
                 q_final = self.step(self.node_list[-1], self.end_point)
                 if self.check_collision(q_final):
-                    return self.final_path(len(self.node_list) - 1)
+                    aaa = self.final_path(len(self.node_list) - 1)
+                    return aaa
 
         return None  # cannot find path
 
@@ -69,50 +74,68 @@ class RRT:
             return None
 
 
-    def step(self, q1, q2):
-        step_len = self.step_size
+    # Computes q_new from q_near to q_rand with a distance step
+    def step(self,q1,q2):
 
-        q_new = self.Node(q1.x, q1.y)
-        d = dist([q2.x,q2.y],[q_new.x,q_new.y])
-        theta = atan2((q2.y-q_new.y),(q2.x-q_new.x))
+        xr=[]
+        yr=[]
+        thetar=[]
+        # 
+        for j in self.uW:
+            (x,y,theta)=self.trajectory(q1.x,q1.y,q1.theta,j)
+            xr.append(x)
+            yr.append(y)
+            thetar.append(theta)
+                
+        # find the best traj from q1 to q2
+        dmin = dist([q2.x,q2.y],[xr[0][-1],yr[0][-1]])
+        near = 0
+        for i in range(1,len(xr)):
+            d = dist([q2.x,q2.y],[xr[i][-1],yr[i][-1]])
+            if d < dmin:
+                dmin= d
+                near = i
 
-        q_new.path_x = [q_new.x]
-        q_new.path_y = [q_new.y]
-
-        if step_len > d:
-            step_len = d
-
-        n = int(floor(step_len / self.path_frac))
-
-        for _ in range(n):
-            q_new.x += self.path_frac * cos(theta)
-            q_new.y += self.path_frac * sin(theta)
-            q_new.path_x.append(q_new.x)
-            q_new.path_y.append(q_new.y)
-
-        d = dist([q2.x,q2.y],[q_new.x,q_new.y])
-        if d <= self.path_frac:
-            q_new.path_x.append(q2.x)
-            q_new.path_y.append(q2.y)
-            q_new.x = q2.x
-            q_new.y = q2.y
-
+        # Define q_new
+        q_new = self.Node(xr[near][-1],yr[near][-1],thetar[near][-1])
         q_new.parent = q1
+        q_new.path_x = xr[near]
+        q_new.path_y = yr[near]
 
         return q_new
 
+
+    # generate trajectory from equations of motion         
+    def trajectory(self,xi,yi,thetai,ori_vec):
+        (x,y,theta)=([],[],[])
+        x.append(xi)
+        y.append(yi)
+        theta.append(thetai)
+        p = self.step_size/self.dt
+        for i in range(1,int(p)):
+            theta.append(theta[i-1]+(self.uV*tan(ori_vec))*self.dt)
+            x.append(x[i-1]+self.uV*cos(theta[i-1])*self.dt)
+            y.append(y[i-1]+self.uV*sin(theta[i-1])*self.dt)    
+
+        return (x,y,theta)
+
+
+    # get final path
     def final_path(self, goal_ind):
         path = [[self.end_point.x, self.end_point.y]]
         node = self.node_list[goal_ind]
         while node.parent is not None:
-            path.append([node.x, node.y])
+            n = len(node.path_x) - 1
+            while n >=0:
+                path.append([node.path_x[n],node.path_y[n]])
+                n -= 1
             node = node.parent
         path.append([node.x, node.y])
 
         return path
 
     def get_random(self):
-        rnd = self.Node(random.uniform(self.min_rand, self.max_rand), random.uniform(self.min_rand, self.max_rand))
+        rnd = self.Node(random.uniform(self.min_rand, self.max_rand), random.uniform(self.min_rand, self.max_rand), random.uniform (0, pi))
         return rnd
 
     def find_qnear(self,q_rnd):
@@ -134,31 +157,21 @@ class RRT:
             dy_list = [cy - y for y in q.path_y]
             d_list = [dx * dx + dy * dy for (dx, dy) in zip(dx_list, dy_list)]
 
-            if min(d_list) <= 3*size**2:
+            if min(d_list) <= 3*(size**2):
                 return False  # collision
 
         return True  # safe
 
-
-
-    def draw_graph(self, pub, rnd=None):
+    # Draw RRT
+    def draw_graph(self):
         plt.clf()
-        # for stopping simulation with the esc key.
-        plt.gcf().canvas.mpl_connect(
-            'key_release_event',
-            lambda event: [exit(0) if event.key == 'escape' else None])
-        if rnd is not None:
-            plt.plot(rnd.x, rnd.y, "^k")
-
         traj = []
         for node in self.node_list:
             if node.parent:
                 plt.plot(node.path_x, node.path_y, "-g")
                 traj.append([node.path_x, node.path_y])
 
-        # new_path2(traj,pub)
-
-
+        # HIGH LOADING - can be removed if needed 
         for (ox, oy, size) in self.obstacle_list:
             plot_circle(ox, oy, size)
 
@@ -167,9 +180,13 @@ class RRT:
         plt.axis("equal")
         plt.axis([-50, 50, -50, 50])
         plt.grid(True)
-        # plt.pause(0.01)
 
-def plot_circle(x, y, size, color="-k"):  # pragma: no cover
+
+
+########################################
+'''         Plot Obstacles           '''
+########################################
+def plot_circle(x, y, size, color="-k"):
     deg = list(range(0, 360, 5))
     deg.append(0)
     xl = [x + size * cos(np.deg2rad(d)) for d in deg]
@@ -178,40 +195,10 @@ def plot_circle(x, y, size, color="-k"):  # pragma: no cover
 
 
 ########################################
-'''           Publish Path           '''
-########################################
-def new_path2(traj, pub):
-    if not pub:
-        raise AssertionError("pub is not valid:%s".format(pub))
-
-    path = Path()
-
-    print(len(traj[0]))
-
-    for j in range(len(traj[0][:][:])):
-        for i in range(len(traj[0][0][:])):
-            # for j in range(len(traj))
-            pose = PoseStamped()
-            pose.header.frame_id = "/odom"
-            pose.header.stamp = rospy.Time.now()
-
-            pose.pose.position.x = traj[j][0][i]
-            pose.pose.position.y = traj[j][1][i]
-            pose.pose.position.z = 0
-
-            path.poses.append(pose)
-
-    path.header.frame_id = "/odom"
-    path.header.stamp = rospy.Time.now()
-    pub.publish(path)
-
-
-
-########################################
 '''      Dist between two points     '''
 ########################################
 def dist(p1,p2): 
-    return sqrt((p1[0]-p2[0])*(p1[0]-p2[0])+(p1[1]-p2[1])*(p1[1]-p2[1]))
+    return ((p1[0]-p2[0])**2 +(p1[1]-p2[1])**2)**(0.5)
 
 
 
@@ -221,8 +208,8 @@ def dist(p1,p2):
 def callback_pose(data):
     global robot_states
 
-    robot_states[0] = data.pose.pose.position.x  # posicao 'x' do robo no mundo 
-    robot_states[1] = data.pose.pose.position.y  # posicao 'y' do robo no mundo 
+    robot_states[0] = data.pose.pose.position.x  # robot pos x
+    robot_states[1] = data.pose.pose.position.y  # robot pos y
 
     x_q = data.pose.pose.orientation.x
     y_q = data.pose.pose.orientation.y
@@ -230,7 +217,7 @@ def callback_pose(data):
     w_q = data.pose.pose.orientation.w
     euler = euler_from_quaternion([x_q, y_q, z_q, w_q])
 
-    robot_states[2] = euler[2]  # orientacao do robo no mundo 
+    robot_states[2] = euler[2]  # robot orientation
             
     return
 
@@ -343,7 +330,6 @@ def run():
     # Publishers
     pub_cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
     pub_path = rospy.Publisher("/final_path", Path, queue_size=10)
-    pub_path2 = rospy.Publisher("/rrt_path", Path, queue_size=10)
 
     # Subscribers
     rospy.Subscriber('/base_pose_ground_truth', Odometry, callback_pose)
@@ -358,16 +344,19 @@ def run():
     M, obstacle_list = map('map_obstacle3.bmp', 50, 1.0)
 
     ####### RRT - class
-    # Start point
-    start = (robot_states[0],robot_states[1])
     goal = []
     max_samples = 5000
 
     flag_start = True
+
+
+    ####### Save_file
+    f_name = rospkg.RosPack().get_path('tp_2_pmr')+"/results/"+'rrt.txt'
+    file = open(f_name, "w+")
     
     while not rospy.is_shutdown():
-
-        start = ((robot_states[0]),(robot_states[1]))
+        # define start point
+        start = ((robot_states[0]),(robot_states[1]), (robot_states[2]))
         if goal and obstacle_list and flag_start==True:
             flag_start = False
 
@@ -388,9 +377,7 @@ def run():
                     new_traj[j,1] = path[i][1]
                     j+=1
 
-                rrt_path.draw_graph(pub_path2)
-
-                # rrt_path.draw_graph()
+                rrt_path.draw_graph()
                 plt.plot([x for (x, y) in path], [y for (x, y) in path], '-r')
                 plt.grid(True)
                 plt.xlabel('X (m)')
@@ -411,6 +398,9 @@ def run():
 
                         vel_msg.linear.x, vel_msg.angular.z = controlador.control_([new_traj[i,0],new_traj[i,1]],robot_states)
                         pub_cmd_vel.publish(vel_msg)
+
+                        file.write("\t%f\t%f\t%f\t%f\t%f\n" % (robot_states[0],robot_states[1],robot_states[2],new_traj[i,0],new_traj[i,1]) )
+                        file.flush()
 
             flag_start = True
             goal = []
