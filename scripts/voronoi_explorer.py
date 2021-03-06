@@ -130,48 +130,6 @@ class Robot:
 
         return s, alfa
 
-    def rotate(self, s, alfa, obst_detec=1.0):
-        """
-        Rotate the robot
-        """
-        K = 1.0
-        Ux_ = (2.0/pi)*atan(K*(s- obst_detec))  # Normal 
-        Uy_ = sqrt(1.0-Ux_**2) # Tangent
-
-        Ux = Ux_*cos(np.deg2rad(alfa-180)+self.robot_ori) - Uy_*sin(np.deg2rad(alfa-180)+self.robot_ori)
-        Uy = Ux_*sin(np.deg2rad(alfa-180)+self.robot_ori) + Uy_*cos(np.deg2rad(alfa-180)+self.robot_ori)
-
-        _, self.vel_msg.angular.z = self.controlador.feedback_linearization(Ux,Uy,self.robot_ori)
-        self.vel_msg.linear.x = 0.5
-        self.pub_cmd_vel.publish(self.vel_msg)
-
-    def contourn_obst(self, s, alfa, obst_detec=1.0):
-        """
-        Contour a obstacle in a position of the laser (distance s and angle alfa) 
-        """
-        K = 1.0
-        Ux_ = (2.0/pi)*atan(K*(s - obst_detec))  # Normal 
-        Uy_ = sqrt(1.0-Ux_**2) # Tangent
-
-        Ux = Ux_*cos(np.deg2rad(alfa-180)+self.robot_ori) - Uy_*sin(np.deg2rad(alfa-180)+self.robot_ori)
-        Uy = Ux_*sin(np.deg2rad(alfa-180)+self.robot_ori) + Uy_*cos(np.deg2rad(alfa-180)+self.robot_ori)
-
-        self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.feedback_linearization(Ux,Uy,self.robot_ori)
-        self.pub_cmd_vel.publish(self.vel_msg)
-
-    def equidistant_obs(self, s, alfa, obst_detec=1.0):
-        """
-        Moves away form an obstacle
-        """
-        K = 0.25
-        Ux_ = (2.0/pi)*atan(K*(s- obst_detec))  # Normal 
-        Uy_ = 0.0
-
-        Ux = Ux_*cos(np.deg2rad(alfa-180)+self.robot_ori) - Uy_*sin(np.deg2rad(alfa-180)+self.robot_ori)
-        Uy = Ux_*sin(np.deg2rad(alfa-180)+self.robot_ori) + Uy_*cos(np.deg2rad(alfa-180)+self.robot_ori)
-
-        self.vel_msg.linear.x, self.vel_msg.angular.z = self.controlador.feedback_linearization(Ux,Uy,self.robot_ori)
-        self.pub_cmd_vel.publish(self.vel_msg)
 
     def dist_vec(self, alfa):
         """
@@ -357,7 +315,8 @@ def explore():
 
             local_min = robot.get_local_min()
             local_min.sort()
-            print(local_min, "- 1")
+            # print(local_min, "- 1")
+            print("Estado 1")
 
             if (len(local_min) > 1):
                 if (abs(local_min[0][0] - local_min[1][0]) < 0.50):
@@ -370,6 +329,7 @@ def explore():
             local_min = robot.get_local_min()
             local_min.sort()
             # print(local_min, "- 2")
+            print("Estado 2")
             
             if (len(local_min) > 1):
                 
@@ -390,7 +350,7 @@ def explore():
                                 angle -= pi
                             else:
                                 angle += pi
-                            print(round(robot.robot_ori, 2), round(angle, 2))
+                            # print(round(robot.robot_ori, 2), round(angle, 2))
                             while not (round(angle, 2) - 0.10 <= round(robot.robot_ori, 2) <= round(angle, 2) + 0.10):
                                 print(round(robot.robot_ori, 2), round(angle, 2))
                                 robot.vel_msg.linear.x = 0.0
@@ -424,21 +384,11 @@ def explore():
 
         # Meetpoint (equidistant to three obstacles)
         if (stage == 3):
-            # s, alfa = robot.min_dist()
-            # local_min = robot.get_local_min()
-            # local_min.sort()
-            # print(meetpoints)
 
             for i in range(len(meetpoints)):
                 d = robot.dist(meetpoints[i][0], meetpoints[i][1], robot.robot_pos[0], robot.robot_pos[1])
                 if d < 2.0:
                     visited = meetpoints[i][2]
-
-            # aux = copy.deepcopy(local_min)
-            # aux = sorted(aux, key = lambda kv:(kv[1], kv[0])) # sorts the list based on the smallest angles
-            # robot.pot_rep(local_min[0][1], local_min[1][1], reverse) # moves the robot to the smallest angle obstacles
-            
-
 
             if (visited % 2 == 0):
                 robot.pot_rep(aux[0][1], aux[1][1], reverse) # moves the robot to the biggest angle obstacles
@@ -446,12 +396,8 @@ def explore():
                 robot.pot_rep(aux[1][1], aux[2][1], reverse) # moves the robot to the smallest angle obstacles
             stage = 2
 
-            # if(len(local_min) > 2):
-            #     if (abs(local_min[0][0] - local_min[2][0]) > 0.70):
-            #         stage = 2
-
-            print(local_min, "- 3")
-
+            # print(local_min, "- 3")
+            print("Estado 3")
 
         rate.sleep()
 
